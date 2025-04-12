@@ -347,16 +347,21 @@ class PINN(nn.Module):
                 self.writer.add_scalar('valid_mse_rul', valid_mse_rul, e)
 
             # 测试 对于best_model进行test，并记录test指标
-            # if valid_mse < min_valid_mse and testloader is not None:
-            if testloader is not None:
+            if valid_mse < min_valid_mse and testloader is not None:
                 min_valid_mse = valid_mse
                 label,pred = self.Test(testloader)
-                pred_soh = pred[:,0]
-                pred_rul = pred[:,1]
-                label_soh = label[:,0]
-                label_rul = label[:,1]
+                pred_soh = pred[:,0]*1.19
+                pred_rul = pred[:,1]*3000
+                label_soh = label[:,0]*1.19
+                label_rul = label[:,1]*3000
                 [MAE_soh, MAPE_soh, MSE_soh, RMSE_soh] = eval_metrix(pred_soh, label_soh)
                 [MAE_rul, MAPE_rul, MSE_rul, RMSE_rul] = eval_metrix(pred_rul, label_rul)
+                if RMSE_soh < min_RMSE_soh:
+                    min_soh_e = e
+                    min_RMSE_soh = RMSE_soh
+                if RMSE_rul < min_RMSE_rul:
+                    min_rul_e = e
+                    min_RMSE_rul = RMSE_rul
                 info = '-----[Test]-----\n' \
                 ' MSE_soh: {:.8f}, MAE_soh: {:.6f}, MAPE_soh: {:.6f}, RMSE_soh: {:.6f}\n' \
                 ' MSE_rul: {:.8f}, MAE_rul: {:.6f}, MAPE_rul: {:.6f}, RMSE_rul: {:.6f}'.format(MSE_soh, MAE_soh, MAPE_soh, RMSE_soh,MSE_rul, MAE_rul, MAPE_rul, RMSE_rul)
@@ -380,6 +385,8 @@ class PINN(nn.Module):
         if self.args.save_folder is not None:
             df.to_csv(os.path.join(self.args.save_folder,'loss_mse.csv'), index=False, float_format='%.6f')
             torch.save(self.best_model,os.path.join(self.args.save_folder,'best_model.pth'))
+        print(f'训练结束\n test_RMSE_soh最小的循环来自epoch{min_soh_e}，为{min_RMSE_soh}, \n \
+              test_RMSE_rul最小的循环来自epoch{min_rul_e}，为{min_RMSE_rul}')
 
 
 
