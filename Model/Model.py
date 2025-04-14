@@ -130,12 +130,13 @@ class PINN(nn.Module):
     def __init__(self,args):
         super(PINN, self).__init__()
         self.args = args
+        board_dir = None
         if args.save_folder is not None and not os.path.exists(args.save_folder):
             os.makedirs(args.save_folder)
+            board_dir = os.path.join(args.save_folder, 'run')
         log_dir = args.log_dir if args.save_folder is None else os.path.join(args.save_folder, args.log_dir)
         self.logger = get_logger(log_dir)
         self._save_args()
-        board_dir = os.path.join(args.save_folder, 'run')
         if board_dir is not None and not os.path.exists(board_dir):
             os.makedirs(board_dir)
         self.writer = SummaryWriter(log_dir=board_dir)
@@ -274,7 +275,8 @@ class PINN(nn.Module):
             # data loss
             loss1_soh = 0.5*self.loss_func(u1[:,0],y1[:,0]) + 0.5*self.loss_func(u2[:,0],y2[:,0])
             loss1_rul = 0.5*self.loss_func(u1[:,1],y1[:,1]) + 0.5*self.loss_func(u2[:,1],y2[:,1])
-            loss1 = 0.5*self.loss_func(u1,y1) + 0.5*self.loss_func(u2,y2)
+            # loss1 = 0.5*self.loss_func(u1,y1) + 0.5*self.loss_func(u2,y2)
+            loss1 = loss1_soh*0.3+loss1_rul*0.7
 
             # PDE loss
             f_target = torch.zeros_like(f1)
@@ -310,6 +312,8 @@ class PINN(nn.Module):
         valid_mse = 10
         early_stop = 0
         mae = 10
+        min_RMSE_soh = 5
+        min_RMSE_rul = 3000
         columns = ['loss', 'loss1', 'loss1_soh', 'loss1_rul', 'loss_2', 'loss_3', 'valid_mse','valid_mse_soh','valid_mse_rul']
         df = pd.DataFrame(columns=columns)
         for e in range(1,self.args.epochs+1):

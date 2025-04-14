@@ -8,6 +8,75 @@ import random
 from sklearn.model_selection import train_test_split
 from utils.util import write_to_txt
 
+
+def _3_sigma(Ser1):
+    '''
+    :param Ser1:
+    :return: index
+    '''
+    rule = (Ser1.mean() - 3 * Ser1.std() > Ser1) | (Ser1.mean() + 3 * Ser1.std() < Ser1)
+    index = np.arange(Ser1.shape[0])[rule]
+    return index
+
+def delete_3_sigma(df):
+    '''
+    先排除无穷大的值，再根据 3_sigma原则刨除异常值
+    :param df: DataFrame
+    :return: DataFrame
+    '''
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna()
+    df = df.reset_index(drop=True)
+    out_index = []
+    for col in df.columns:
+        index = _3_sigma(df[col])  
+        out_index.extend(index)
+    out_index = list(set(out_index))
+    df = df.drop(out_index, axis=0)
+    df = df.reset_index(drop=True)
+    return df
+
+def read_one_csv(file_name,nominal_capacity=None, nominal_rul=None):
+    '''
+    read a csv file and return a DataFrame
+    :param file_name: str
+    :return: DataFrame
+    '''
+    df = pd.read_csv(file_name)
+    df.insert(df.shape[1]-2,'cycle index',np.arange(df.shape[0]))  # 在倒数第二列的位置插入了一个名为 'cycle index' 的新列，值为序号
+
+    df = delete_3_sigma(df)
+
+    if nominal_capacity is not None and nominal_rul is not None:
+        #print(f'nominal_capacity:{nominal_capacity}, capacity max:{df["capacity"].max()}',end=',')
+        #print(f'nominal_rul:{nominal_rul}, rul max:{df["eul"].max()}',end=',')
+        df['capacity'] = df['capacity']/nominal_capacity
+        df['rul'] = df['rul']/nominal_rul
+        #print(f'SOH max:{df["capacity"].max()}')
+        f_df = df.iloc[:,:-2]
+        f_df = 2*(f_df - f_df.min())/(f_df.max() - f_df.min()) - 1
+        df.iloc[:,:-2] = f_df
+
+    return df
+
+def HUST_test_dataloader(path,nominal_capacity, nominal_rul):
+    df = read_one_csv(path,nominal_capacity, nominal_rul)
+    x = df.iloc[:,:-2].values
+    y = df.iloc[:,-2:].values   
+    x1 = x[:-1]
+    x2 = x[1:]
+    y1 = y[:-1]
+    y2 = y[1:]
+    tensor_X1 = torch.from_numpy(x1).float()
+    tensor_X2 = torch.from_numpy(x2).float()
+    tensor_Y1 = torch.from_numpy(y1).float()
+    tensor_Y2 = torch.from_numpy(y2).float()
+    test_loader = DataLoader(TensorDataset(tensor_X1, tensor_X2, tensor_Y1, tensor_Y2),
+                            batch_size=1,
+                            shuffle=False)
+    return test_loader
+
+
 class DF():
     def __init__(self,args):
         self.normalization = True
